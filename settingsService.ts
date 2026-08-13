@@ -3,7 +3,7 @@ import {
   getGymSettingsFromStorage,
   saveGymSettingsToStorage,
   resetDataToDefaults,
-} from '../utils/storage';
+} from './storage';
 
 /**
  * Retrieves the current gym settings
