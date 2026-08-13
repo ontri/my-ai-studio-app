@@ -1,5 +1,5 @@
 import { Member, AttendanceRecord, FeePayment, GymSettings } from '../types';
-import { initialMembers, initialAttendance, initialPayments, initialSettings } from '../data/initialData';
+import { initialMembers, initialAttendance, initialPayments, initialSettings } from './initialData';
 
 const STORAGE_KEYS = {
   MEMBERS: 'gym_app_members',
