@@ -6,43 +6,57 @@ import {
   GymSettings,
   TabType,
 } from './types';
+
 import {
   getMembers,
   createMember as addMember,
   updateMember,
   renewMembership,
   deleteMember,
+} from './memberService';
+
+import {
   getAttendance,
   markAttendance as markAttendanceRecord,
+} from './attendanceService';
+
+import {
   getPayments,
   createPayment as recordNewPayment,
   updatePayment as updateFeePayment,
   deletePayment as deleteFeePayment,
+} from './paymentService';
+
+import {
   getSettings as getGymSettings,
   updateSettings as saveGymSettings,
   resetAllData as resetDataToDefaults,
+} from './settingsService';
+
+import {
   downloadBackupFile,
   restoreBackup,
-} from './services';
+} from './backupService';
+
 import { GYM_DATA_UPDATED_EVENT } from './storage';
 
-import { Sidebar } from './components/Sidebar';
-import { Header } from './components/Header';
-import { Toast, ToastMessage } from './components/Toast';
-import { ConfirmModal } from './components/ConfirmModal';
+import { Sidebar } from './Sidebar';
+import { Header } from './Header';
+import { Toast, ToastMessage } from './Toast';
+import { ConfirmModal } from './ConfirmModal';
 
-import { DashboardView } from './components/dashboard/DashboardView';
-import { MembersView } from './components/members/MembersView';
-import { MemberFormModal } from './components/members/MemberFormModal';
-import { MemberDetailModal } from './components/members/MemberDetailModal';
-import { RenewModal } from './components/members/RenewModal';
-import { AttendanceView } from './components/attendance/AttendanceView';
-import { FeesView } from './components/fees/FeesView';
-import { ReceiptModal } from './components/fees/ReceiptModal';
-import { ReportsView } from './components/reports/ReportsView';
-import { SettingsView } from './components/settings/SettingsView';
+import { DashboardView } from './DashboardView';
+import { MembersView } from './MembersView';
+import { MemberFormModal } from './MemberFormModal';
+import { MemberDetailModal } from './MemberDetailModal';
+import { RenewModal } from './RenewModal';
+import { AttendanceView } from './AttendanceView';
+import { FeesView } from './FeesView';
+import { ReceiptModal } from './ReceiptModal';
+import { ReportsView } from './ReportsView';
+import { SettingsView } from './SettingsView';
 
-import { Dumbbell, Lock, ArrowRight } from 'lucide-react';
+import { Lock, ArrowRight } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -61,12 +75,17 @@ export default function App() {
   const [isMemberFormOpen, setIsMemberFormOpen] = useState(false);
   const [memberToEdit, setMemberToEdit] = useState<Member | null>(null);
 
-  const [selectedMemberForDetail, setSelectedMemberForDetail] = useState<Member | null>(null);
-  const [selectedMemberForRenew, setSelectedMemberForRenew] = useState<Member | null>(null);
+  const [selectedMemberForDetail, setSelectedMemberForDetail] =
+    useState<Member | null>(null);
 
-  const [selectedMemberForFee, setSelectedMemberForFee] = useState<Member | null>(null);
+  const [selectedMemberForRenew, setSelectedMemberForRenew] =
+    useState<Member | null>(null);
 
-  const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState<FeePayment | null>(null);
+  const [selectedMemberForFee, setSelectedMemberForFee] =
+    useState<Member | null>(null);
+
+  const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] =
+    useState<FeePayment | null>(null);
 
   // Confirm Modal state
   const [confirmModalState, setConfirmModalState] = useState<{
@@ -87,10 +106,21 @@ export default function App() {
   const [loginPassword, setLoginPassword] = useState('');
 
   // Toast Helper
-  const showToast = useCallback((type: 'success' | 'error' | 'info', message: string) => {
-    const id = `toast-${Date.now()}-${Math.random()}`;
-    setToasts((prev) => [...prev, { id, type, message }]);
-  }, []);
+  const showToast = useCallback(
+    (type: 'success' | 'error' | 'info', message: string) => {
+      const id = `toast-${Date.now()}-${Math.random()}`;
+
+      setToasts((prev) => [
+        ...prev,
+        {
+          id,
+          type,
+          message,
+        },
+      ]);
+    },
+    []
+  );
 
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -111,34 +141,64 @@ export default function App() {
       loadAllData();
     };
 
-    window.addEventListener(GYM_DATA_UPDATED_EVENT, handleStorageChange);
+    window.addEventListener(
+      GYM_DATA_UPDATED_EVENT,
+      handleStorageChange
+    );
+
     return () => {
-      window.removeEventListener(GYM_DATA_UPDATED_EVENT, handleStorageChange);
+      window.removeEventListener(
+        GYM_DATA_UPDATED_EVENT,
+        handleStorageChange
+      );
     };
   }, [loadAllData]);
 
   // MEMBER HANDLERS
-  const handleSaveMember = (data: Omit<Member, 'id' | 'status'> | Member) => {
+  const handleSaveMember = (
+    data: Omit<Member, 'id' | 'status'> | Member
+  ) => {
     if ('id' in data) {
       updateMember(data as Member);
-      showToast('success', `Member profile for ${data.fullName} updated.`);
+
+      showToast(
+        'success',
+        `Member profile for ${data.fullName} updated.`
+      );
     } else {
       const created = addMember(data);
-      showToast('success', `New member ${created.fullName} (${created.id}) added successfully!`);
+
+      showToast(
+        'success',
+        `New member ${created.fullName} (${created.id}) added successfully!`
+      );
     }
+
+    loadAllData();
   };
 
+  // RENEW MEMBERSHIP
   const handleRenewMembership = (
     memberId: string,
     planId: string,
     startDate: string,
     expiryDate: string,
     amount: number,
-    paymentMethod: 'Cash' | 'Card' | 'UPI' | 'Bank Transfer' | 'Other',
+    paymentMethod:
+      | 'Cash'
+      | 'Card'
+      | 'UPI'
+      | 'Bank Transfer'
+      | 'Other',
     recordPayment: boolean
   ) => {
-    const selectedPlan = settings.plans.find((p) => p.id === planId);
-    const planName = selectedPlan ? selectedPlan.name : 'Renewal Plan';
+    const selectedPlan = settings.plans.find(
+      (p) => p.id === planId
+    );
+
+    const planName = selectedPlan
+      ? selectedPlan.name
+      : 'Renewal Plan';
 
     const result = renewMembership({
       memberId,
@@ -157,19 +217,33 @@ export default function App() {
         `Membership for ${result.updatedMember.fullName} renewed until ${expiryDate}!`
       );
     }
+
+    loadAllData();
     setSelectedMemberForRenew(null);
   };
 
+  // DELETE MEMBER
   const handleDeleteMemberClick = (member: Member) => {
     setConfirmModalState({
       isOpen: true,
       title: 'Delete Member Record',
       message: `Are you sure you want to delete ${member.fullName} (${member.id})? This will permanently remove their records.`,
       isDanger: true,
+
       onConfirm: () => {
         deleteMember(member.id);
-        setConfirmModalState((prev) => ({ ...prev, isOpen: false }));
-        showToast('info', `Member ${member.fullName} was deleted.`);
+
+        setConfirmModalState((prev) => ({
+          ...prev,
+          isOpen: false,
+        }));
+
+        showToast(
+          'info',
+          `Member ${member.fullName} was deleted.`
+        );
+
+        loadAllData();
       },
     });
   };
@@ -181,35 +255,74 @@ export default function App() {
     date: string,
     status: 'Present' | 'Absent'
   ) => {
-    const res = markAttendanceRecord(memberId, memberName, date, status);
+    const res = markAttendanceRecord(
+      memberId,
+      memberName,
+      date,
+      status
+    );
+
     if (res.isDuplicate) {
-      showToast('info', 'Attendance already recorded for today.');
+      showToast(
+        'info',
+        'Attendance already recorded for today.'
+      );
     } else if (res.isUpdated) {
-      showToast('success', `Attendance for ${memberName} updated to ${status}.`);
+      showToast(
+        'success',
+        `Attendance for ${memberName} updated to ${status}.`
+      );
     } else {
-      showToast('success', `Marked ${memberName} as ${status} for ${date}.`);
+      showToast(
+        'success',
+        `Marked ${memberName} as ${status} for ${date}.`
+      );
     }
+
+    loadAllData();
   };
 
   // PAYMENT HANDLER
-  const handleRecordPayment = (paymentData: Omit<FeePayment, 'id' | 'receiptNo'>) => {
+  const handleRecordPayment = (
+    paymentData: Omit<FeePayment, 'id' | 'receiptNo'>
+  ) => {
     const newPayment = recordNewPayment(paymentData);
+
     showToast(
       'success',
       `Payment recorded! Receipt #${newPayment.receiptNo} generated for ${newPayment.memberName}.`
     );
+
+    loadAllData();
   };
 
-  const handleUpdatePayment = (id: string, paymentData: Partial<FeePayment>) => {
+  // UPDATE PAYMENT
+  const handleUpdatePayment = (
+    id: string,
+    paymentData: Partial<FeePayment>
+  ) => {
     const updated = updateFeePayment(id, paymentData);
+
     if (updated) {
-      showToast('success', `Payment receipt #${updated.receiptNo} updated successfully.`);
+      showToast(
+        'success',
+        `Payment receipt #${updated.receiptNo} updated successfully.`
+      );
     }
+
+    loadAllData();
   };
 
+  // DELETE PAYMENT
   const handleDeletePayment = (id: string) => {
     deleteFeePayment(id);
-    showToast('info', 'Payment record deleted and member balance recalculated.');
+
+    showToast(
+      'info',
+      'Payment record deleted and member balance recalculated.'
+    );
+
+    loadAllData();
   };
 
   // SETTINGS RESET HANDLER
@@ -220,16 +333,29 @@ export default function App() {
       message:
         'This will reset all members, attendance logs, and fee receipts to initial demo defaults. Proceed?',
       isDanger: true,
+
       onConfirm: () => {
         resetDataToDefaults();
-        setConfirmModalState((prev) => ({ ...prev, isOpen: false }));
-        showToast('info', 'Demo data restored to default settings.');
+
+        setConfirmModalState((prev) => ({
+          ...prev,
+          isOpen: false,
+        }));
+
+        showToast(
+          'info',
+          'Demo data restored to default settings.'
+        );
+
+        loadAllData();
       },
     });
   };
 
   // QUICK ACTIONS
-  const handleQuickAction = (action: 'addMember' | 'recordFee' | 'attendance') => {
+  const handleQuickAction = (
+    action: 'addMember' | 'recordFee' | 'attendance'
+  ) => {
     if (action === 'addMember') {
       setMemberToEdit(null);
       setIsMemberFormOpen(true);
@@ -250,16 +376,26 @@ export default function App() {
           </div>
 
           <div className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight">{settings.gymName}</h1>
-            <p className="text-xs text-slate-400">Gym Manager Session Locked</p>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {settings.gymName}
+            </h1>
+
+            <p className="text-xs text-slate-400">
+              Gym Manager Session Locked
+            </p>
           </div>
 
           <form
             onSubmit={(e) => {
               e.preventDefault();
+
               setIsLoggedOut(false);
               setLoginPassword('');
-              showToast('success', `Welcome back, ${settings.adminName}!`);
+
+              showToast(
+                'success',
+                `Welcome back, ${settings.adminName}!`
+              );
             }}
             className="space-y-4 pt-2"
           >
@@ -268,7 +404,9 @@ export default function App() {
                 type="password"
                 placeholder="Enter password (any key to unlock demo)"
                 value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
+                onChange={(e) =>
+                  setLoginPassword(e.target.value)
+                }
                 className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-sm focus:outline-none focus:border-amber-500 text-center text-white"
               />
             </div>
@@ -278,6 +416,7 @@ export default function App() {
               className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-2"
             >
               <span>Unlock Application</span>
+
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
@@ -286,11 +425,14 @@ export default function App() {
     );
   }
 
-  const expiredCount = members.filter((m) => m.status === 'Expired').length;
+  const expiredCount = members.filter(
+    (m) => m.status === 'Expired'
+  ).length;
 
   return (
     <div className="min-h-screen bg-slate-100/70 text-slate-900 flex font-sans antialiased">
-      {/* Sidebar Navigation */}
+
+      {/* Sidebar */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -301,12 +443,22 @@ export default function App() {
           setConfirmModalState({
             isOpen: true,
             title: 'Logout / Lock Session',
-            message: 'Are you sure you want to log out and lock your gym management session?',
+            message:
+              'Are you sure you want to log out and lock your gym management session?',
             isDanger: false,
+
             onConfirm: () => {
-              setConfirmModalState((prev) => ({ ...prev, isOpen: false }));
+              setConfirmModalState((prev) => ({
+                ...prev,
+                isOpen: false,
+              }));
+
               setIsLoggedOut(true);
-              showToast('info', 'Session locked.');
+
+              showToast(
+                'info',
+                'Session locked.'
+              );
             },
           });
         }}
@@ -314,18 +466,23 @@ export default function App() {
         expiredCount={expiredCount}
       />
 
-      {/* Main Content Workspace */}
+      {/* Main Content */}
       <div className="flex-1 lg:pl-64 print:pl-0 flex flex-col min-w-0">
-        {/* Top Header */}
+
+        {/* Header */}
         <Header
           activeTab={activeTab}
-          onOpenMobileSidebar={() => setIsOpenMobileSidebar(true)}
+          onOpenMobileSidebar={() =>
+            setIsOpenMobileSidebar(true)
+          }
           settings={settings}
           onQuickAction={handleQuickAction}
         />
 
-        {/* Dynamic View Body */}
+        {/* Body */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+
+          {/* Dashboard */}
           {activeTab === 'dashboard' && (
             <DashboardView
               members={members}
@@ -333,12 +490,17 @@ export default function App() {
               payments={payments}
               settings={settings}
               setActiveTab={setActiveTab}
-              onSelectMember={(m) => setSelectedMemberForDetail(m)}
-              onSelectPayment={(p) => setSelectedPaymentForReceipt(p)}
+              onSelectMember={(m) =>
+                setSelectedMemberForDetail(m)
+              }
+              onSelectPayment={(p) =>
+                setSelectedPaymentForReceipt(p)
+              }
               onQuickAction={handleQuickAction}
             />
           )}
 
+          {/* Members */}
           {activeTab === 'members' && (
             <MembersView
               members={members}
@@ -352,21 +514,29 @@ export default function App() {
                 setMemberToEdit(m);
                 setIsMemberFormOpen(true);
               }}
-              onViewMember={(m) => setSelectedMemberForDetail(m)}
+              onViewMember={(m) =>
+                setSelectedMemberForDetail(m)
+              }
               onDeleteMember={handleDeleteMemberClick}
-              onOpenRenewModal={(m) => setSelectedMemberForRenew(m)}
+              onOpenRenewModal={(m) =>
+                setSelectedMemberForRenew(m)
+              }
             />
           )}
 
+          {/* Attendance */}
           {activeTab === 'attendance' && (
             <AttendanceView
               members={members}
               attendance={attendance}
               onMarkAttendance={handleMarkAttendance}
-              onViewMemberDetail={(m) => setSelectedMemberForDetail(m)}
+              onViewMemberDetail={(m) =>
+                setSelectedMemberForDetail(m)
+              }
             />
           )}
 
+          {/* Fees */}
           {activeTab === 'fees' && (
             <FeesView
               members={members}
@@ -375,11 +545,16 @@ export default function App() {
               onRecordPayment={handleRecordPayment}
               onUpdatePayment={handleUpdatePayment}
               onDeletePayment={handleDeletePayment}
-              selectedMemberForPayment={selectedMemberForFee}
-              clearSelectedMember={() => setSelectedMemberForFee(null)}
+              selectedMemberForPayment={
+                selectedMemberForFee
+              }
+              clearSelectedMember={() =>
+                setSelectedMemberForFee(null)
+              }
             />
           )}
 
+          {/* Reports */}
           {activeTab === 'reports' && (
             <ReportsView
               members={members}
@@ -389,95 +564,149 @@ export default function App() {
             />
           )}
 
+          {/* Settings */}
           {activeTab === 'settings' && (
             <SettingsView
               settings={settings}
+
               onSaveSettings={(updated) => {
                 saveGymSettings(updated);
                 setSettings(updated);
-                showToast('success', 'Gym settings updated!');
+
+                showToast(
+                  'success',
+                  'Gym settings updated!'
+                );
+
+                loadAllData();
               }}
+
               onResetData={handleResetDataClick}
+
               onExportBackup={() => {
                 downloadBackupFile();
-                showToast('success', 'Backup exported successfully!');
+
+                showToast(
+                  'success',
+                  'Backup exported successfully!'
+                );
               }}
+
               onRestoreBackup={(jsonContent) => {
                 const res = restoreBackup(jsonContent);
+
                 if (res.success) {
                   loadAllData();
-                  showToast('success', 'Backup restored successfully.');
+
+                  showToast(
+                    'success',
+                    'Backup restored successfully.'
+                  );
                 }
+
                 return res;
               }}
             />
           )}
+
         </main>
       </div>
 
-      {/* MODALS */}
-
-      {/* Member Add/Edit Form Modal */}
+      {/* MEMBER FORM */}
       <MemberFormModal
         isOpen={isMemberFormOpen}
         memberToEdit={memberToEdit}
         plans={settings.plans}
-        currencySymbol={settings.currencySymbol || '$'}
+        currencySymbol={
+          settings.currencySymbol || '$'
+        }
         onSave={handleSaveMember}
-        onClose={() => setIsMemberFormOpen(false)}
+        onClose={() =>
+          setIsMemberFormOpen(false)
+        }
       />
 
-      {/* Member Profile Detail Drawer/Modal */}
+      {/* MEMBER DETAIL */}
       <MemberDetailModal
         member={selectedMemberForDetail}
         attendance={attendance}
         payments={payments}
         settings={settings}
-        onClose={() => setSelectedMemberForDetail(null)}
+
+        onClose={() =>
+          setSelectedMemberForDetail(null)
+        }
+
         onEdit={(m) => {
           setMemberToEdit(m);
           setIsMemberFormOpen(true);
         }}
+
         onRecordFeeForMember={(m) => {
           setSelectedMemberForFee(m);
           setActiveTab('fees');
         }}
-        onOpenRenewModal={(m) => setSelectedMemberForRenew(m)}
+
+        onOpenRenewModal={(m) =>
+          setSelectedMemberForRenew(m)
+        }
       />
 
-      {/* Renew Membership Modal */}
+      {/* RENEW MEMBERSHIP */}
       <RenewModal
         member={selectedMemberForRenew}
         plans={settings.plans}
-        currencySymbol={settings.currencySymbol || '$'}
+        currencySymbol={
+          settings.currencySymbol || '$'
+        }
         onRenew={handleRenewMembership}
-        onClose={() => setSelectedMemberForRenew(null)}
+        onClose={() =>
+          setSelectedMemberForRenew(null)
+        }
       />
 
-      {/* Receipt Printable Modal */}
+      {/* RECEIPT */}
       <ReceiptModal
         payment={selectedPaymentForReceipt}
+
         member={
           selectedPaymentForReceipt
-            ? members.find((m) => m.id === selectedPaymentForReceipt.memberId)
+            ? members.find(
+                (m) =>
+                  m.id ===
+                  selectedPaymentForReceipt.memberId
+              )
             : null
         }
+
         settings={settings}
-        onClose={() => setSelectedPaymentForReceipt(null)}
+
+        onClose={() =>
+          setSelectedPaymentForReceipt(null)
+        }
       />
 
-      {/* Confirmation Dialog */}
+      {/* CONFIRMATION */}
       <ConfirmModal
         isOpen={confirmModalState.isOpen}
         title={confirmModalState.title}
         message={confirmModalState.message}
         isDanger={confirmModalState.isDanger}
         onConfirm={confirmModalState.onConfirm}
-        onCancel={() => setConfirmModalState((prev) => ({ ...prev, isOpen: false }))}
+        onCancel={() =>
+          setConfirmModalState((prev) => ({
+            ...prev,
+            isOpen: false,
+          }))
+        }
       />
 
-      {/* Toast Notifications */}
-      <Toast toasts={toasts} onDismiss={dismissToast} />
+      {/* TOAST */}
+      <Toast
+        toasts={toasts}
+        onDismiss={dismissToast}
+      />
+
     </div>
   );
 }
