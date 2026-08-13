@@ -1,5 +1,5 @@
 import { FeePayment } from '../types';
-import { getPaymentsFromStorage, savePaymentsToStorage } from '../utils/storage';
+import { getPaymentsFromStorage, savePaymentsToStorage } from './storage';
 import { getMembers, updateMember } from './memberService';
 
 export interface PaymentFilters {
