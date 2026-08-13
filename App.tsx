@@ -24,7 +24,7 @@ import {
   downloadBackupFile,
   restoreBackup,
 } from './services';
-import { GYM_DATA_UPDATED_EVENT } from './utils/storage';
+import { GYM_DATA_UPDATED_EVENT } from './storage';
 
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
